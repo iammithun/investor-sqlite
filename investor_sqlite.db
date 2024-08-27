@@ -1,0 +1,69 @@
+import requests
+from bs4 import BeautifulSoup
+import sqlite3
+
+# URL to scrape
+url = "https://www.dataroma.com/m/managers.php"
+
+# Spoof the user-agent to appear as a browser
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+}
+
+# Send a GET request with headers
+response = requests.get(url, headers=headers)
+
+# Check if the request was successful
+if response.status_code == 200:
+    print("Page loaded successfully!")
+else:
+    print(f"Failed to load the page. Status code: {response.status_code}")
+    exit()
+
+# Parse the page content using BeautifulSoup
+soup = BeautifulSoup(response.text, 'html.parser')
+
+# Try to locate the table
+table = soup.find('table', {'id': 'grid'})
+
+# Check if the table is found
+if table:
+    print("Table found!")
+
+    # Connect to SQLite database (or create it if it doesn't exist)
+    conn = sqlite3.connect('billionaires.db')
+    cursor = conn.cursor()
+
+    # Create table if it doesn't exist
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS billionaires (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            investment TEXT NOT NULL
+        )
+    ''')
+
+    # Iterate through table rows
+    for row in table.find_all('tr')[1:]:  # Skipping the header row
+        cols = row.find_all('td')
+
+        if len(cols) > 1:
+            # Username (Billionaire's name)
+            username = cols[0].text.strip()
+
+            # Investment amount
+            investment = cols[1].text.strip()
+
+            cursor.execute('''
+                INSERT INTO billionaires (name, investment)
+                VALUES (?, ?)
+            ''', (username, investment))
+
+    # Commit the transaction and close the connection
+    conn.commit()
+    conn.close()
+
+    print("Data has been successfully stored in the SQLite database.")
+
+else:
+    print("Table not found! The content might be loaded dynamically.")
